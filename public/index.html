@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Video Downloader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            font-size: small;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .health-status {
+            text-align: center;
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .health-ok {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .health-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎥Instagram Video Downloader </h1>
+        
+        <!-- <div id="health-status" class="health-status">
+            Checking API status...
+        </div> -->
+
+        <div class="form-group">
+            <label for="video-url">Video URL</label>
+            <input type="url" id="video-url" placeholder="https://www.instagram.com/reel/...">
+        </div>
+
+        <button id="download-btn">Download Video</button>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p style="margin-top: 10px;">Downloading video... This may take a moment</p>
+        </div>
+
+        <div id="message" class="message"></div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        // Check API health status
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                const statusEl = document.getElementById('health-status');
+                if (response.ok) {
+                    statusEl.textContent = '✅ API is running';
+                    statusEl.className = 'health-status health-ok';
+                } else {
+                    statusEl.textContent = '❌ API is not available';
+                    statusEl.className = 'health-status health-error';
+                }
+            } catch (error) {
+                console.error('Health check failed:', error);
+                const statusEl = document.getElementById('health-status');
+                statusEl.textContent = '❌ API is not available';
+                statusEl.className = 'health-status health-error';
+            }
+        }
+
+        // Download video
+        async function downloadVideo() {
+            const urlInput = document.getElementById('video-url');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                showMessage('Please enter a video URL', 'error');
+                return;
+            }
+
+            // Validate URL format
+            try {
+                new URL(url);
+            } catch (error) {
+                showMessage('Please enter a valid URL starting with http:// or https://', 'error');
+                return;
+            }
+
+            // Disable button and show loading
+            const downloadBtn = document.getElementById('download-btn');
+            const loading = document.getElementById('loading');
+            downloadBtn.disabled = true;
+            loading.style.display = 'block';
+            hideMessage();
+
+            try {
+                // Send download request
+                const response = await fetch(`${API_BASE}/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Download failed');
+                }
+
+                // Get blob data
+                const blob = await response.blob();
+                
+                // Create download link
+                const urlCreator = window.URL || window.webkitURL;
+                const videoUrl = urlCreator.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = videoUrl;
+                link.download = `video-${Date.now()}.mp4`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showMessage('✅ Video downloaded successfully!', 'success');
+                urlInput.value = '';
+
+            } catch (error) {
+                console.error('Download error:', error);
+                showMessage(`❌ ${error.message}`, 'error');
+            } finally {
+                // Re-enable button and hide loading
+                downloadBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function showMessage(text, type) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type}`;
+            messageEl.style.display = 'block';
+        }
+
+        function hideMessage() {
+            const messageEl = document.getElementById('message');
+            messageEl.style.display = 'none';
+        }
+
+        // Event listeners
+        document.getElementById('download-btn').addEventListener('click', downloadVideo);
+        document.getElementById('video-url').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                downloadVideo();
+            }
+        });
+
+        // Check health on load
+        document.addEventListener('DOMContentLoaded', checkHealth);
+    </script>
+</body>
+</html>

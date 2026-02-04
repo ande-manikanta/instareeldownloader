@@ -55,7 +55,6 @@ dist
 
 # Gatsby files
 .cache/
-public
 
 # vuepress build output
 .vuepress/dist
@@ -89,6 +88,17 @@ public
 *.ogg
 *.avi
 *.mov
+
+# Temporary files
+temp/
+*.tmp
+
+# Test files
+test-server.js
+simple-server.js
+
+# Screenshots
+screenshots/
 
 # PDF files (ignore sample.pdf if it's a test file)
 # sample.pdf
