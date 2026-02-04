@@ -39,6 +39,31 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Progress tracking endpoint (using Server-Sent Events)
+app.get('/api/download/progress/:id', (req, res) => {
+  const { id } = req.params;
+  
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+
+  // Send initial event
+  res.write('data: {"type":"connected","message":"Progress tracking connected"}\n\n');
+
+  // Store response object for sending progress updates
+  if (!global.downloadProgress) {
+    global.downloadProgress = {};
+  }
+  global.downloadProgress[id] = res;
+
+  // Cleanup on client disconnect
+  req.on('close', () => {
+    delete global.downloadProgress[id];
+  });
+});
+
 // Video download endpoint
 app.post('/api/download', async (req, res) => {
   try {
@@ -71,14 +96,49 @@ app.post('/api/download', async (req, res) => {
     }
 
     const outputPath = path.join(tempDir, 'temp-video.%(ext)s');
-    const finalPath = path.join(tempDir, 'temp-video.mp4');
 
-    // Download video
-    await ytdlp(url, {
-      output: outputPath,
-      format: 'best',
-      mergeOutputFormat: 'mp4'
+    // Download video with progress tracking
+    const downloadPromise = new Promise((resolve, reject) => {
+        const ytdlpProcess = ytdlp.exec(url, {
+            output: outputPath,
+            format: 'best',
+            mergeOutputFormat: 'mp4'
+        }, {
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+
+        // Track progress
+        ytdlpProcess.stdout.on('data', (data) => {
+            const output = data.toString();
+            // Look for progress information like: [download]  50.0% of 10.00MiB at  2.00MiB/s ETA 00:05
+            const progressMatch = output.match(/\[download\]\s*(\d+\.\d+)%\s*of\s*([\d.]+)([KMG]iB)?\s*at\s*([\d.]+)([KMG]iB\/s)?\s*ETA\s*(\d+:\d+)/);
+            if (progressMatch) {
+                const progress = {
+                    percentage: parseFloat(progressMatch[1]),
+                    totalSize: `${progressMatch[2]}${progressMatch[3]}`,
+                    speed: `${progressMatch[4]}${progressMatch[5]}`,
+                    eta: progressMatch[6]
+                };
+                console.log('Progress:', progress.percentage + '%');
+            }
+        });
+
+        ytdlpProcess.stderr.on('data', (data) => {
+            console.error('ytdlp error:', data.toString());
+        });
+
+        ytdlpProcess.on('close', (code) => {
+            if (code === 0) {
+                resolve();
+            } else {
+                reject(new Error(`ytdlp exited with code ${code}`));
+            }
+        });
+
+        ytdlpProcess.on('error', reject);
     });
+
+    await downloadPromise;
 
     // Find the downloaded file
     const files = fs.readdirSync(tempDir);

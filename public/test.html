@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Instagram Download</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+        }
+        button:hover {
+            background: #5a6fd8;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            display: none;
+            margin: 10px 0;
+        }
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Instagram Video Downloader Test</h1>
+        <input type="text" id="video-url" value="https://www.instagram.com/reel/DUN0LOpDAAN/?igsh=dXhyYXNhaTdienE0">
+        <button id="download-btn">Download Test Video</button>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Downloading video...</p>
+        </div>
+        
+        <div id="message" class="message"></div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        function showMessage(text, type) {
+            const messageEl = document.getElementById('message');
+            messageEl.textContent = text;
+            messageEl.className = `message ${type}`;
+            messageEl.style.display = 'block';
+        }
+
+        function hideMessage() {
+            document.getElementById('message').style.display = 'none';
+        }
+
+        async function downloadVideo() {
+            const urlInput = document.getElementById('video-url');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                showMessage('Please enter a video URL', 'error');
+                return;
+            }
+
+            try {
+                new URL(url);
+            } catch (error) {
+                showMessage('Please enter a valid URL starting with http:// or https://', 'error');
+                return;
+            }
+
+            const downloadBtn = document.getElementById('download-btn');
+            const loading = document.getElementById('loading');
+            downloadBtn.disabled = true;
+            loading.style.display = 'block';
+            hideMessage();
+
+            try {
+                const response = await fetch(`${API_BASE}/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Download failed');
+                }
+
+                const blob = await response.blob();
+                const videoUrl = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = videoUrl;
+                link.download = `test-video-${Date.now()}.mp4`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showMessage('✅ Video downloaded successfully!', 'success');
+
+            } catch (error) {
+                console.error('Download error:', error);
+                showMessage(`❌ ${error.message}`, 'error');
+            } finally {
+                downloadBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        document.getElementById('download-btn').addEventListener('click', downloadVideo);
+    </script>
+</body>
+</html>
